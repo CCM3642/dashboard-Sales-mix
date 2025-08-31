@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>مشروع إدارة الوصفات والمبيعات والجرد</title>
+  <style>
+    :root{
+      --bg:#0b1020; --card:#121a33; --muted:#8aa0c6; --text:#eaf1ff; --accent:#4dd0e1; --accent2:#ffd166; --danger:#ff6b6b; --ok:#5ad37d;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Cairo",system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:var(--text)}
+    header{position:sticky;top:0;background:linear-gradient(180deg,#0b1020,rgba(11,16,32,.6));backdrop-filter:blur(8px);z-index:50;border-bottom:1px solid #1f2b50}
+    .wrap{max-width:1200px;margin:auto;padding:12px}
+    h1{margin:0;font-size:22px;font-weight:800;letter-spacing:.2px}
+    .tabs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .tab{padding:10px 14px;border:1px solid #23315b;border-radius:12px;background:#121a33;cursor:pointer;user-select:none}
+    .tab.active{background:linear-gradient(90deg,#1a2450,#18264a);border-color:#345; box-shadow:0 0 0 2px #1f2b50 inset}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+    button{padding:8px 12px;border-radius:10px;border:1px solid #2a3a6f;background:#172247;color:var(--text);cursor:pointer}
+    button.primary{background:linear-gradient(90deg,#23408e,#1f3570);border-color:#3a57aa}
+    button.good{background:linear-gradient(90deg,#0a6b4a,#0a553e);border-color:#1b8a61}
+    button.warn{background:linear-gradient(90deg,#7a2a2a,#6a1e1e);border-color:#a74343}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .card{background:var(--card);border:1px solid #21315d;border-radius:16px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    table{width:100%;border-collapse:separate;border-spacing:0; min-width:700px}
+    th,td{border-bottom:1px solid #243466;padding:6px 8px; text-align:center}
+    th{position:sticky;top:0;background:#172247;z-index:2}
+    tbody tr:hover{background:#0f1836}
+    input,select{background:#0f1733;border:1px solid #29407b; color:var(--text); border-radius:8px; padding:6px 8px}
+    .row{display:grid; gap:10px}
+    .row.cols-3{grid-template-columns:repeat(3,1fr)}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{padding:4px 8px;border:1px dashed #345;border-radius:999px}
+    .scroll-x{overflow:auto}
+    .muted{color:var(--muted)}
+    .note{font-size:12px;color:#c8d7ffb3}
+    .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .kpi .box{background:#111a34;border:1px solid #22305a;border-radius:14px;padding:10px}
+    .box h3{margin:0 0 6px 0;font-size:13px;color:var(--muted)}
+    .box b{font-size:18px}
+    .danger{color:var(--danger)}
+    .ok{color:var(--ok)}
+    footer{padding:20px 0;color:#9db3e6; font-size:12px}
+    .pill{padding:2px 8px;border-radius:999px;border:1px solid #2a3a6f; background:#0f1733; font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>نظام HTML — المزيج البيعي (الوصفات) + المبيعات + الجرد + الانحراف</h1>
+      <div class="tabs" id="tabs">
+        <div class="tab active" data-tab="recipes">الوصفات (Sales Mix)</div>
+        <div class="tab" data-tab="sales">المبيعات اليومية</div>
+        <div class="tab" data-tab="monthly">التقرير الشهري</div>
+        <div class="tab" data-tab="inventory">الجرد & الحركات</div>
+        <div class="tab" data-tab="settings">إعدادات/استيراد</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section id="recipes" class="card">
+      <div class="toolbar">
+        <button class="primary" id="btnAddItem">+ إضافة صنف</button>
+        <button id="btnAddIng">+ إضافة مكوّن</button>
+        <button class="good" id="btnSave">💾 حفظ (LocalStorage)</button>
+        <button id="btnExport">⬇️ تصدير JSON</button>
+        <label class="pill">عدد الأصناف: <span id="countItems">0</span></label>
+        <label class="pill">عدد المكونات: <span id="countIngs">0</span></label>
+      </div>
+      <div class="scroll-x">
+        <table id="tblRecipes"></table>
+      </div>
+      <p class="note">أدخل كميات المكونات **لكل وحدة بيع**. مثال: صنف 12PCS يستخدم 12 قطعة دجاج → في عمود CHIX اكتب 12.</p>
+    </section>
+
+    <section id="sales" class="card" style="display:none">
+      <div class="toolbar">
+        <div class="row cols-3" style="width:100%">
+          <label>التاريخ
+            <input type="date" id="saleDate" />
+          </label>
+          <label>الصنف
+            <select id="saleItem"></select>
+          </label>
+          <label>الكمية
+            <input type="number" id="saleQty" min="1" step="1" value="1" />
+          </label>
+        </div>
+        <button class="primary" id="btnAddSale">+ إضافة حركة بيع</button>
+        <button class="good" id="btnSaveSales">💾 حفظ المبيعات</button>
+        <button id="btnExportSales">⬇️ تصدير المبيعات CSV</button>
+        <span class="pill">إجمالي السطور: <span id="salesRows">0</span></span>
+      </div>
+      <div class="scroll-x">
+        <table id="tblSales"></table>
+      </div>
+    </section>
+
+    <section id="monthly" class="card" style="display:none">
+      <div class="toolbar">
+        <label>شهر التقرير
+          <input type="month" id="repMonth" />
+        </label>
+        <button class="primary" id="btnBuildMonthly">حساب التقرير</button>
+        <button id="btnExportMonthly">⬇️ تصدير ملخص CSV</button>
+      </div>
+      <div class="kpi" id="kpi"></div>
+      <div class="scroll-x">
+        <table id="tblMonthly"></table>
+      </div>
+      <p class="note">الاستهلاك النظري = مجموع (كمية بيع الصنف × وصفته لكل مكوّن) لكل يوم.</p>
+    </section>
+
+    <section id="inventory" class="card" style="display:none">
+      <div class="toolbar">
+        <button class="good" id="btnSaveInv">💾 حفظ الجرد والحركات</button>
+        <button id="btnCalcVariance">حساب الانحراف</button>
+      </div>
+      <div class="scroll-x">
+        <table id="tblInventory"></table>
+      </div>
+      <div class="scroll-x" style="margin-top:12px">
+        <table id="tblVariance"></table>
+      </div>
+      <p class="note">الاستهلاك الفعلي = رصيد أول + مشتريات + تحويلات داخلة − تحويلات خارجة − جرد آخر − هالك.</p>
+    </section>
+
+    <section id="settings" class="card" style="display:none">
+      <div class="toolbar">
+        <input type="file" id="fileImport" accept="application/json" />
+        <button id="btnImport">📥 استيراد JSON</button>
+        <button class="warn" id="btnReset">🗑️ مسح كل البيانات</button>
+      </div>
+      <p class="muted">صيغة JSON تشمل: ingredients, items (بالوصفات), sales, inventory.</p>
+      <div class="chips" id="ingChips"></div>
+    </section>
+
+    <footer class="wrap">
+      <span>💡 نصيحة: وحِّد وحدات القياس (قطعة/جرام/لتر) داخل الحسابات. عوامل التحويل تُستخدم فقط للعرض.</span>
+    </footer>
+  </main>
+
+<script>
+// ========= Data Model =========
+const DB_KEY = 'mix_html_db_v1';
+let state = {
+  ingredients: [
+    'CHIX','STRIP','BEEFBURGER','Beef burger 125 g','CHIX BURGER','ZINGER','FRIES','CHEES','GARLICSUACE','SMALL CLOWSLOW','BIG CLOWSLOW','DYNAMTESAUCE','BPESI PIP','PEPSI LITER','LARGE JUICE','SMALL WATER','BUN 4 INCH','TORTILA','BUN 4.5 INCH','BUN 6 INCH','SAMOLINA 8 INCH','BUN 5','NUGGETS','SMALL JUICE','POP CORN','SHAWRMA','BASMATI RICE','KINZA COLA','FLOOR','lettuce','Mayonnaise','ketchup','SHORTING'
+  ],
+  items: [
+    {name:'12 PCS PACKET MIX', family:'Combo Meal Mix', group:'Food', recipe: {CHIX:12, GARLICSUACE:3, 'SMALL CLOWSLOW':3, 'BUN 5':3, 'BUN 4 INCH':6}},
+    {name:'16 PCS PACKET MIX', family:'Combo Meal Mix', group:'Food', recipe: {CHIX:16, FRIES:5, GARLICSUACE:4, 'BUN 5':4, 'BUN 4 INCH':8}},
+    {name:'20 PCS PACKET MIX', family:'Combo Meal Mix', group:'Food', recipe: {CHIX:20, FRIES:5, GARLICSUACE:5, 'BUN 5':5, 'BUN 4 INCH':8}},
+    {name:'BUCKET MEAL MIX', family:'Combo Meal Mix', group:'Food', recipe: {CHIX:8, STRIP:8, FRIES:5, 'SMALL WATER':1, 'BUN 4 INCH':8}}
+  ],
+  sales: [ // عينات من الصورة: يوم 1 ويوم 29
+    {date:'2025-03-01', item:'12 PCS PACKET MIX', qty:1},
+    {date:'2025-03-29', item:'12 PCS PACKET MIX', qty:111}
+  ],
+  inventory: { // لكل مكوّن: begin, purchases, tin, tout, waste, end
+  }
+};
+
+// ========= Persistence =========
+function load(){
+  const raw = localStorage.getItem(DB_KEY);
+  if(raw){
+    try{ state = JSON.parse(raw); }catch(e){ console.warn('failed parse'); }
+  }
+}
+function save(){ localStorage.setItem(DB_KEY, JSON.stringify(state)); }
+
+// ========= Helpers =========
+const qs = s=>document.querySelector(s);
+const ce = (tag,props={})=>Object.assign(document.createElement(tag),props);
+function fmt(n){ return Number(n||0).toLocaleString('ar-EG'); }
+function unique(arr){ return [...new Set(arr)]; }
+
+// ========= Tabs =========
+[...document.querySelectorAll('.tab')].forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  const id=t.dataset.tab;
+  document.querySelectorAll('main section').forEach(s=>s.style.display='none');
+  qs('#'+id).style.display='block';
+}));
+
+// ========= Recipes UI =========
+function drawRecipes(){
+  qs('#countItems').textContent = state.items.length;
+  qs('#countIngs').textContent = state.ingredients.length;
+  const tbl = qs('#tblRecipes');
+  tbl.innerHTML='';
+  const thead = ce('thead');
+  const hr = ce('tr');
+  ;['#','اسم الصنف','المجموعة','الفئة','—'].concat(state.ingredients).forEach((h,i)=>{
+    const th = ce('th',{textContent:h});
+    if(i>=5) th.title='كمية لكل وحدة بيع';
+    hr.appendChild(th);
+  });
+  thead.appendChild(hr); tbl.appendChild(thead);
+  const tb=ce('tbody');
+  state.items.forEach((it,idx)=>{
+    const tr=ce('tr');
+    tr.appendChild(ce('td',{textContent:idx+1}))
+    const name=ce('input',{value:it.name}); name.onchange=()=>{it.name=name.value; fillSaleItems(); save();}
+    const fam=ce('input',{value:it.family||''}); fam.onchange=()=>{it.family=fam.value; save();}
+    const grp=ce('input',{value:it.group||''}); grp.onchange=()=>{it.group=grp.value; save();}
+    const del=ce('button',{textContent:'حذف'}); del.onclick=()=>{state.items.splice(idx,1); drawRecipes(); fillSaleItems(); save();}
+    const tdName=ce('td'); tdName.appendChild(name); tr.appendChild(tdName);
+    const tdFam=ce('td'); tdFam.appendChild(fam); tr.appendChild(tdFam);
+    const tdGrp=ce('td'); tdGrp.appendChild(grp); tr.appendChild(tdGrp);
+    const tdDel=ce('td'); tdDel.appendChild(del); tr.appendChild(tdDel);
+    // recipe cells
+    if(!it.recipe) it.recipe={};
+    state.ingredients.forEach(ing=>{
+      const v=it.recipe[ing]||0;
+      const inp=ce('input',{type:'number', step:'0.001', value:v});
+      inp.onchange=()=>{ it.recipe[ing]=Number(inp.value)||0; save(); };
+      const td=ce('td'); td.appendChild(inp); tr.appendChild(td);
+    });
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+  drawChips();
+}
+
+qs('#btnAddItem').onclick=()=>{ state.items.push({name:'صنف جديد', family:'', group:'', recipe:{}}); drawRecipes(); fillSaleItems(); save(); }
+qs('#btnAddIng').onclick=()=>{
+  const name=prompt('اسم المكوّن (حروف لاتينية/إنجليزية يفضّل بلا مسافات)');
+  if(!name) return;
+  if(state.ingredients.includes(name)) return alert('المكوّن موجود');
+  state.ingredients.push(name);
+  drawRecipes(); fillSaleItems(); drawInventory(); save();
+}
+qs('#btnSave').onclick=save;
+qs('#btnExport').onclick=()=>{
+  const url = URL.createObjectURL(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}));
+  const a = ce('a',{href:url, download:'mix-project.json'}); a.click(); URL.revokeObjectURL(url);
+}
+
+function drawChips(){
+  const box=qs('#ingChips'); box.innerHTML='';
+  state.ingredients.forEach(ing=>{
+    const c=ce('div',{className:'chip',textContent:ing}); box.appendChild(c);
+  })
+}
+
+// ========= Sales UI =========
+function fillSaleItems(){
+  const sel=qs('#saleItem'); sel.innerHTML='';
+  state.items.forEach(it=> sel.appendChild(ce('option',{value:it.name,textContent:it.name})) );
+}
+
+function drawSales(){
+  qs('#salesRows').textContent = state.sales.length;
+  const tbl=qs('#tblSales'); tbl.innerHTML='';
+  const thead=ce('thead');
+  thead.innerHTML='<tr><th>#</th><th>التاريخ</th><th>الصنف</th><th>الكمية</th><th>—</th></tr>';
+  tbl.appendChild(thead);
+  const tb=ce('tbody');
+  state.sales.forEach((s,i)=>{
+    const tr=ce('tr');
+    tr.appendChild(ce('td',{textContent:i+1}));
+    const d=ce('input',{type:'date', value:s.date}); d.onchange=()=>{s.date=d.value; save();}
+    const itm=ce('select'); state.items.forEach(it=> itm.appendChild(ce('option',{value:it.name,textContent:it.name, selected:it.name===s.item})) );
+    itm.onchange=()=>{s.item=itm.value; save();}
+    const q=ce('input',{type:'number', step:'1', min:'0', value:s.qty}); q.onchange=()=>{s.qty=Number(q.value)||0; save();}
+    const del=ce('button',{textContent:'حذف'}); del.onclick=()=>{state.sales.splice(i,1); drawSales(); save();}
+    const td1=ce('td'); td1.appendChild(d); tr.appendChild(td1);
+    const td2=ce('td'); td2.appendChild(itm); tr.appendChild(td2);
+    const td3=ce('td'); td3.appendChild(q); tr.appendChild(td3);
+    const td4=ce('td'); td4.appendChild(del); tr.appendChild(td4);
+    tb.appendChild(tr);
+  })
+  tbl.appendChild(tb);
+}
+
+qs('#btnAddSale').onclick=()=>{
+  const d=qs('#saleDate').value || new Date().toISOString().slice(0,10);
+  const it=qs('#saleItem').value || (state.items[0]?.name||'');
+  const q=Number(qs('#saleQty').value)||1;
+  state.sales.push({date:d,item:it,qty:q}); drawSales(); save();
+}
+qs('#btnSaveSales').onclick=save;
+qs('#btnExportSales').onclick=()=>{
+  const rows=[['Date','Item','Qty']].concat(state.sales.map(s=>[s.date,s.item,s.qty]));
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  ce('a',{href:url,download:'sales.csv'}).click(); URL.revokeObjectURL(url);
+}
+
+// ========= Calculations =========
+function mapRecipe(itemName){
+  const it = state.items.find(x=>x.name===itemName);
+  return it?.recipe || {};
+}
+function usageByDate(date){
+  // returns {ing: qtyUsed}
+  const obj={};
+  state.sales.filter(s=>s.date===date).forEach(s=>{
+    const rec = mapRecipe(s.item);
+    Object.entries(rec).forEach(([ing,qty])=>{
+      obj[ing]=(obj[ing]||0)+ (s.qty*Number(qty||0));
+    })
+  })
+  return obj;
+}
+function usageByMonth(ym){ // '2025-03'
+  const days = daysInMonth(ym);
+  const result = {};// {date:{ing:qty}}
+  days.forEach(d=>{ result[d]=usageByDate(d); })
+  return result;
+}
+function daysInMonth(ym){ // ym=YYYY-MM
+  const [y,m]=ym.split('-').map(Number); const last=new Date(y,m,0).getDate();
+  const arr=[]; for(let d=1; d<=last; d++){ arr.push(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`) }
+  return arr;
+}
+
+// ========= Monthly UI =========
+qs('#btnBuildMonthly').onclick=buildMonthly;
+function buildMonthly(){
+  const ym = qs('#repMonth').value || new Date().toISOString().slice(0,7);
+  const days = daysInMonth(ym);
+  const use = usageByMonth(ym);
+  const tbl=qs('#tblMonthly'); tbl.innerHTML='';
+  const thead=ce('thead');
+  const hr=ce('tr');
+  hr.appendChild(ce('th',{textContent:'التاريخ'}));
+  state.ingredients.forEach(ing=> hr.appendChild(ce('th',{textContent:ing})) );
+  thead.appendChild(hr); tbl.appendChild(thead);
+  const tb=ce('tbody');
+  let totals={};
+  days.forEach(d=>{
+    const tr=ce('tr'); tr.appendChild(ce('td',{textContent:d}));
+    state.ingredients.forEach(ing=>{
+      const v = (use[d]?.[ing])||0; totals[ing]=(totals[ing]||0)+v; tr.appendChild(ce('td',{textContent:fmt(v)}));
+    })
+    tb.appendChild(tr);
+  })
+  // TOTAL Recipe row
+  const trT=ce('tr'); trT.style.background='#0e1a3a';
+  trT.appendChild(ce('td',{innerHTML:'<b>TOTAL Recipe</b>'}))
+  state.ingredients.forEach(ing=> trT.appendChild(ce('td',{innerHTML:`<b>${fmt(totals[ing]||0)}</b>`})) );
+  tb.appendChild(trT); tbl.appendChild(tb);
+
+  // KPIs بسيطة
+  const k=qs('#kpi'); k.innerHTML='';
+  const sumSales = state.sales.filter(s=>s.date.startsWith(ym)).reduce((a,b)=>a+b.qty,0);
+  k.appendChild(kpi('إجمالي سطور المبيعات', sumSales));
+  k.appendChild(kpi('عدد المكونات', state.ingredients.length));
+  k.appendChild(kpi('عدد الأصناف', state.items.length));
+  k.appendChild(kpi('أيام الشهر', days.length));
+
+  // Store latest monthly totals for variance table to reference
+  state.__lastMonthlyTotals = totals; save();
+}
+function kpi(title,val){ const d=ce('div',{className:'box'}); d.innerHTML=`<h3>${title}</h3><b>${fmt(val)}</b>`; return d; }
+
+qs('#btnExportMonthly').onclick=()=>{
+  const ym = qs('#repMonth').value || new Date().toISOString().slice(0,7);
+  const totals = state.__lastMonthlyTotals || {};
+  const rows = [['Ingredient','TotalRecipe('+ym+')']];
+  state.ingredients.forEach(ing=> rows.push([ing, (totals[ing]||0)]) );
+  const csv=rows.map(r=>r.join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  ce('a',{href:url,download:'monthly_totals_'+ym+'.csv'}).click(); URL.revokeObjectURL(url);
+}
+
+// ========= Inventory & Variance =========
+function ensureInv(){
+  state.ingredients.forEach(ing=>{
+    if(!state.inventory[ing]) state.inventory[ing]={begin:0,purchases:0,tin:0,tout:0,waste:0,end:0};
+  })
+}
+function drawInventory(){
+  ensureInv();
+  const tbl=qs('#tblInventory'); tbl.innerHTML='';
+  const thead=ce('thead'); thead.innerHTML='<tr><th>المكوّن</th><th>رصيد أول</th><th>مشتريات</th><th>تحويلات داخلة</th><th>تحويلات خارجة</th><th>هالك</th><th>رصيد آخر</th></tr>';
+  tbl.appendChild(thead);
+  const tb=ce('tbody');
+  state.ingredients.forEach(ing=>{
+    const inv=state.inventory[ing];
+    const tr=ce('tr'); tr.appendChild(ce('td',{textContent:ing}))
+    ;['begin','purchases','tin','tout','waste','end'].forEach(key=>{
+      const inp=ce('input',{type:'number', step:'0.001', value:inv[key]||0});
+      inp.onchange=()=>{inv[key]=Number(inp.value)||0; save();}
+      const td=ce('td'); td.appendChild(inp); tr.appendChild(td);
+    })
+    tb.appendChild(tr);
+  })
+  tbl.appendChild(tb);
+}
+
+qs('#btnSaveInv').onclick=save;
+qs('#btnCalcVariance').onclick=()=>{
+  const totals = state.__lastMonthlyTotals || {}; // من التقرير
+  const tbl=qs('#tblVariance'); tbl.innerHTML='';
+  const thead=ce('thead'); thead.innerHTML='<tr><th>المكوّن</th><th>Total Recipe</th><th>Actual</th><th>Variance (Actual-Recipe)</th></tr>';
+  tbl.appendChild(thead);
+  const tb=ce('tbody');
+  state.ingredients.forEach(ing=>{
+    const inv=state.inventory[ing]||{};
+    const actual=(+inv.begin||0)+(+inv.purchases||0)+(+inv.tin||0)-(+inv.tout||0)-(+inv.end||0)-(+inv.waste||0);
+    const recipe=+totals[ing]||0;
+    const varc=actual - recipe;
+    const tr=ce('tr');
+    tr.appendChild(ce('td',{textContent:ing}))
+    tr.appendChild(ce('td',{textContent:fmt(recipe)}))
+    tr.appendChild(ce('td',{textContent:fmt(actual)}))
+    const tdv=ce('td',{textContent:fmt(varc)}); tdv.style.color = varc>0? 'var(--danger)': (varc<0? 'var(--ok)':''); tr.appendChild(tdv);
+    tb.appendChild(tr);
+  })
+  tbl.appendChild(tb);
+}
+
+// ========= Import / Reset =========
+qs('#btnImport').onclick=()=>{
+  const f=qs('#fileImport').files[0]; if(!f) return alert('اختر ملف JSON');
+  const r=new FileReader(); r.onload=e=>{ try{ state=JSON.parse(e.target.result); save(); init(); alert('تم الاستيراد'); }catch(err){ alert('ملف غير صالح'); } }; r.readAsText(f);
+}
+qs('#btnReset').onclick=()=>{ if(confirm('مسح كل البيانات؟')){ localStorage.removeItem(DB_KEY); location.reload(); } }
+
+// ========= Boot =========
+function init(){
+  load();
+  drawRecipes();
+  fillSaleItems();
+  drawSales();
+  qs('#repMonth').value = new Date().toISOString().slice(0,7);
+  buildMonthly();
+  drawInventory();
+}
+init();
+</script>
+</body>
+</html>
